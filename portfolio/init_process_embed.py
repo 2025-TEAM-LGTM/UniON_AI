@@ -1,0 +1,78 @@
+from psycopg.rows import dict_row
+from pathlib import Path
+import sys
+BASE_DIR = Path(__file__).resolve().parents[1]  # 프로젝트 루트
+sys.path.append(str(BASE_DIR))  
+               
+from db import conn
+from process_embed import process_portfolio
+from embed import embed
+from put_db import upsert_task_vector, upsert_trouble_vector
+
+
+def fetch_portfolios(conn, limit: int = 200, only_missing: bool = True) -> list[dict]:
+    """
+    portfolio 여러 개 가져오기
+    - only_missing=True: portfolio_vector에 아직 없거나 벡터가 NULL인 것만 가져옴
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        if only_missing:
+            cur.execute(
+                """
+                SELECT p.portfolio_id, p.t_text, p.a_text
+                FROM portfolio p
+                LEFT JOIN portfolio_vector pv ON pv.portfolio_id = p.portfolio_id
+                WHERE (pv.portfolio_id IS NULL
+                       OR pv.ptf_task_vector IS NULL
+                       OR pv.ptf_trouble_vector IS NULL)
+                ORDER BY p.portfolio_id
+                LIMIT %s
+                """,
+                (limit,)
+            )
+        else:
+            cur.execute(
+                """
+                SELECT portfolio_id, t_text, a_text
+                FROM portfolio
+                ORDER BY portfolio_id
+                LIMIT %s
+                """,
+                (limit,)
+            )
+        return cur.fetchall()
+
+
+def init_portfolio_vectors(conn, limit: int = 200, commit_every: int = 20, only_missing: bool = True):
+    portfolios = fetch_portfolios(conn, limit=limit, only_missing=only_missing)
+    print(f"target={len(portfolios)}")
+
+    done = 0
+    fail = 0
+
+    for portfolio in portfolios:
+        portfolio_id = int(portfolio["portfolio_id"])
+        try:
+            task_text, trouble_text = process_portfolio(portfolio)
+
+            task_emb = embed(task_text) if task_text and task_text.strip() else None
+            trouble_emb = embed(trouble_text) if trouble_text and trouble_text.strip() else None
+
+            upsert_task_vector(conn, portfolio_id, task_emb)
+            upsert_trouble_vector(conn, portfolio_id, trouble_emb)
+
+            done += 1
+            if done % commit_every == 0:
+                conn.commit()
+                print(f"committed {done}")
+
+        except Exception as e:
+            fail += 1
+            conn.rollback()
+            print(f"[FAIL] portfolio_id={portfolio_id} / {e}")
+
+    conn.commit()
+    print(f"done={done}, fail={fail}")
+
+
+init_portfolio_vectors(conn, limit=10, commit_every=2, only_missing=True)
