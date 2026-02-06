@@ -11,20 +11,21 @@ from db import conn
 
 portfolio_id= 265
 
-def process_portfolio(portfolio: dict) -> tuple[str, str]:
+def process_portfolio(portfolio: dict) -> tuple[list, list]:
 
     # t_text에서 task 추출
     t_text = get_t_text(portfolio)
     task_t = extract_task_from_t_text(t_text)
-
-    print("task_t : "+task_t)
+    print("task_t : ")
+    print(task_t)
     # a_text에서 task 추출
     a_text = get_a_text(portfolio)
     task_a = extract_task_from_a_text(a_text)
     trouble = extract_trouble_from_a_text(a_text)
-
-    print("task_a : "+task_a)
-    print("trouble : " + trouble)
+    print("task_a")
+    print(task_a)
+    print("trouble")
+    print(trouble)
 
     # task 병합
     merged_task = merge_tasks(task_t, task_a)

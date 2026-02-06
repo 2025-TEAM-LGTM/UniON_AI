@@ -9,41 +9,68 @@ from process_embed import process_post
 from embed import embed
 from put_db import upsert_post_vector
 
-def fetch_posts(conn, limit: int = 200, only_missing: bool = True) -> list[dict]:
+
+def fetch_posts(
+    conn,
+    *,
+    limit: int = 200,
+    only_missing: bool = True,
+    start_post_id: int | None = None,
+) -> list[dict]:
+    """
+    post들을 post_id 오름차순으로 가져오되,
+    필요하면 start_post_id 이상부터만 가져온다.
+    """
     with conn.cursor(row_factory=dict_row) as cur:
+        params: list = []
+
+        base_sql = """
+            SELECT p.post_id, pi.seeking
+            FROM post p
+            JOIN post_info pi ON pi.post_id = p.post_id
+        """
+
         if only_missing:
-            cur.execute(
-                """
-                SELECT p.post_id, pi.seeking
-                FROM post p
-                JOIN post_info pi ON pi.post_id = p.post_id
-                LEFT JOIN post_vector pv ON pv.post_id = p.post_id
-                WHERE pi.seeking IS NOT NULL
-                  AND (pv.post_id IS NULL
-                       OR pv.pst_task_vector IS NULL
-                       OR pv.pst_trouble_vector IS NULL)
-                ORDER BY p.post_id
-                LIMIT %s
-                """,
-                (limit,)
-            )
+            base_sql += """
+            LEFT JOIN post_vector pv ON pv.post_id = p.post_id
+            WHERE pi.seeking IS NOT NULL
+              AND (pv.post_id IS NULL
+                   OR pv.pst_task_vector IS NULL
+                   OR pv.pst_trouble_vector IS NULL)
+            """
         else:
-            cur.execute(
-                """
-                SELECT p.post_id, pi.seeking
-                FROM post p
-                JOIN post_info pi ON pi.post_id = p.post_id
-                WHERE pi.seeking IS NOT NULL
-                ORDER BY p.post_id
-                LIMIT %s
-                """,
-                (limit,)
-            )
+            base_sql += """
+            WHERE pi.seeking IS NOT NULL
+            """
+
+        if start_post_id is not None:
+            base_sql += " AND p.post_id >= %s"
+            params.append(start_post_id)
+
+        base_sql += """
+            ORDER BY p.post_id
+            LIMIT %s
+        """
+        params.append(limit)
+
+        cur.execute(base_sql, params)
         return cur.fetchall()
 
 
-def init_post_vectors(conn, limit: int = 200, commit_every: int = 20, only_missing: bool = True):
-    posts = fetch_posts(conn, limit=limit, only_missing=only_missing)
+def init_post_vectors(
+    conn,
+    *,
+    limit: int = 200,
+    commit_every: int = 20,
+    only_missing: bool = True,
+    start_post_id: int | None = None,
+):
+    posts = fetch_posts(
+        conn,
+        limit=limit,
+        only_missing=only_missing,
+        start_post_id=start_post_id,
+    )
     print(f"target={len(posts)}")
 
     done = 0
@@ -70,4 +97,6 @@ def init_post_vectors(conn, limit: int = 200, commit_every: int = 20, only_missi
     conn.commit()
     print(f"done {done}")
 
-init_post_vectors(conn, limit=10, commit_every=5, only_missing=True)
+
+# 예시: post_id 100001번부터 10개만 처리
+init_post_vectors(conn, limit=10, commit_every=5, only_missing=True, start_post_id=100021)
