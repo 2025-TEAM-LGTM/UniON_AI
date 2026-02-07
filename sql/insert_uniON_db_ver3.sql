@@ -543,6 +543,18 @@ INSERT INTO image (image_id, image_url, purpose, file_size, size_type) VALUES (1
 INSERT INTO image (image_id, image_url, purpose, file_size, size_type) VALUES (20001, '/images/default_post.png', 'POST', 5000000, 'MEDIUM');
 INSERT INTO image (image_id, image_url, purpose, file_size, size_type) VALUES (30001, '/images/default_portfolio.png', 'PORTFOLIO',8000000, 'LARGE');
 
+-- 유저 테이블의 image_id 기본값을 10001로 설정 
+ALTER TABLE "users" 
+ALTER COLUMN "image_id" SET DEFAULT 10001;
+
+-- 포트폴리오 테이블의 image_id 기본값을 20001로 설정
+ALTER TABLE "portfolio" 
+ALTER COLUMN "image_id" SET DEFAULT 20001;
+
+-- 공고 정보 테이블의 image_id 기본값을 30001로 설정
+ALTER TABLE "post_info" 
+ALTER COLUMN "image_id" SET DEFAULT 30001;
+
 /*username에 한글있으니, 한글 깨지지 않게 조심하기*/
 /*user는 postgresql에서 쓰는 시스템 키워드라서, user로 하면 오류가 남 --> 테이블 이름을 users로 변경*/
 INSERT INTO users (user_id, login_id, password, username, image_id, main_role_id, personality, created_at, updated_at) VALUES (10001, 'user_10001', 'Qk6Ed1Ax', '스마일맨', 20001, 101, '{ "A": 0, "B": 1, "C": 0, "D": 1,  "E": 1,  "F": 0,  "G": 1,  "H": 0,  "I": 1,  "J": 0,  "K": 1,  "L": 1,  "M": 0,  "N": 1}', '2024-07-21 8:39:33', '2024-09-11 3:00:42');

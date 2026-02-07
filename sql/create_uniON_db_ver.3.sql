@@ -269,18 +269,6 @@ ALTER TABLE "portfolio_vector" ADD FOREIGN KEY ("portfolio_id") REFERENCES "port
 -- 5. Image Relation (이미지 관련)
 -- 전략: SET DEFAULT - 이미지가 깨져도 본문은 살린다
 -- ==========================================
--- 이미 insert된 3개 이미지의 id를 따옴 
--- 유저 테이블의 image_id 기본값을 1로 설정 
-ALTER TABLE "users" 
-ALTER COLUMN "image_id" SET DEFAULT 10001;
-
--- 포트폴리오 테이블의 image_id 기본값을 1로 설정
-ALTER TABLE "portfolio" 
-ALTER COLUMN "image_id" SET DEFAULT 20001;
-
--- 공고 정보 테이블의 image_id 기본값을 1로 설정
-ALTER TABLE "post_info" 
-ALTER COLUMN "image_id" SET DEFAULT 30001;
 
 ALTER TABLE "post_info" ADD FOREIGN KEY ("image_id") REFERENCES "image" ("image_id") ON DELETE SET DEFAULT;
 ALTER TABLE "portfolio" ADD FOREIGN KEY ("image_id") REFERENCES "image" ("image_id") ON DELETE SET DEFAULT;
