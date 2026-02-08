@@ -1,7 +1,8 @@
 from typing import Any
 
 from psycopg.rows import dict_row
-from pgvector.psycopg import register_vector
+from psn_match import psn_score_one
+
 from pathlib import Path
 import sys
 
@@ -104,28 +105,64 @@ def vec_scores(vector_col: str, query_vec, base: int, candidates: list[int]) -> 
             sims[int(r["portfolio_id"])] = base + soft_bonus(sim)
         return sims
 
+# 5) personality 유사도 점수
+def psn_scores( post_id : int, candidates : list[int]) -> dict[int, int]:
+    scores = {}
+    for pid in candidates :
+        sim = (int)(psn_score_one(post_id, pid) * 5)
+        scores[pid] = sim
+    return scores
 
-# 5) 점수 합산 및 정렬
+# 6) 점수 합산 및 정렬
 def sum_score(
     candidates: list[int],
     domain_scores: dict[int, int],
     task_scores: dict[int, int],
     trouble_scores: dict[int, int],
+    psn_scores: dict[int, int],
     top_k: int,
-) -> list[int]:
+) -> list[dict[str, Any]]:
+    """점수 합산 후 total 기준 내림차순 정렬된 전체 후보 리스트 반환 (각 항목: portfolio_id, domain, task, trouble, personality, total)."""
     ranked = []
     for pid in candidates:
-        total = domain_scores.get(pid, 0) + task_scores.get(pid, 0) + trouble_scores.get(pid, 0)
+        domain_score = domain_scores.get(pid, 0)
+        task_score = task_scores.get(pid, 0)
+        trouble_score = trouble_scores.get(pid, 0)
+        psn_score = psn_scores.get(pid, 0)
+
+        total = domain_score + task_score + trouble_score + psn_score
         ranked.append({
             "portfolio_id": pid,
-            "domain": domain_scores.get(pid, 0),
-            "task": task_scores.get(pid, 0),
-            "trouble": trouble_scores.get(pid, 0),
-            "total": total
+            "domain": domain_score,
+            "task": task_score,
+            "trouble": trouble_score,
+            "personality": psn_score,
+            "total": total,
         })
     ranked.sort(key=lambda x: x["total"], reverse=True)
+    return ranked
 
-    return [r["portfolio_id"] for r in ranked[:top_k]]
+
+def print_match_debug(ranked: list[dict[str, Any]], post_id: int, top_k: int) -> None:
+    """매칭 결과 디버깅: 각 후보의 domain/task/trouble/personality/total 점수 출력."""
+    if not ranked:
+        print("[DEBUG] 후보가 없습니다.")
+        return
+    n = len(ranked)
+    print("\n" + "=" * 70)
+    print(f"[매칭 디버그] post_id={post_id} | 후보 수={n} | 상위 {min(top_k, n)}개 추천")
+    print("=" * 70)
+    header = f"{'portfolio_id':>12} | {'domain':>6} | {'task':>6} | {'trouble':>7} | {'personality':>11} | {'total':>5}"
+    print(header)
+    print("-" * 70)
+    for r in ranked:
+        mark = "  <-- 추천" if ranked.index(r) < top_k else ""
+        print(
+            f"{r['portfolio_id']:>12} | {r['domain']:>6} | {r['task']:>6} | {r['trouble']:>7} | {r['personality']:>11} | {r['total']:>5}{mark}"
+        )
+    print("=" * 70)
+    top_ids = [r["portfolio_id"] for r in ranked[:top_k]]
+    print(f"추천 포트폴리오 ID (top_{top_k}): {top_ids}\n")
 
 if __name__ == "__main__":
     raw_post_id = input("post id를 입력하세요 : ").strip()
@@ -159,6 +196,15 @@ if __name__ == "__main__":
         base=3,
         candidates=c_ptf,
     )
+    c_psn_scores = psn_scores(c_post_id, c_ptf)
 
-    top_portfolios = sum_score(c_ptf, c_domain_scores, c_task_scores, c_trouble_scores, 5)
-    print("추천 포트폴리오 ID:", top_portfolios)
+    top_k = 5
+    ranked = sum_score(
+        c_ptf,
+        c_domain_scores,
+        c_task_scores,
+        c_trouble_scores,
+        c_psn_scores,
+        top_k,
+    )
+    print_match_debug(ranked, c_post_id, top_k)
