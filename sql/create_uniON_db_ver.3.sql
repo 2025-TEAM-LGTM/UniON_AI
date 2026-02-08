@@ -241,8 +241,6 @@ ALTER TABLE "user_profile" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user
 ALTER TABLE "user_skill" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id") ON DELETE CASCADE;
 ALTER TABLE "post_apply" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id") ON DELETE CASCADE;
 ALTER TABLE "portfolio" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id") ON DELETE CASCADE;
-
--- [중요] 팀장이 삭제되면 공고도 삭제? (주인님 정책: CASCADE)
 ALTER TABLE "post" ADD FOREIGN KEY ("leader_id") REFERENCES "users" ("user_id") ON DELETE CASCADE;
 
 -- ==========================================
@@ -270,7 +268,8 @@ ALTER TABLE "portfolio_vector" ADD FOREIGN KEY ("portfolio_id") REFERENCES "port
 -- 전략: SET DEFAULT - 이미지가 깨져도 본문은 살린다
 -- ==========================================
 
-ALTER TABLE "post_info" ADD FOREIGN KEY ("image_id") REFERENCES "image" ("image_id") ON DELETE SET DEFAULT;
+
+ALTER TABLE "post_info" ADD FOREIGN KEY ("image_id") REFERENCES "image" ("image_id") ON DELETE SET NULL; -- post의 경우, NULL처리함 
 ALTER TABLE "portfolio" ADD FOREIGN KEY ("image_id") REFERENCES "image" ("image_id") ON DELETE SET DEFAULT;
 ALTER TABLE "users" ADD FOREIGN KEY ("image_id") REFERENCES "image" ("image_id") ON DELETE SET DEFAULT;
 
