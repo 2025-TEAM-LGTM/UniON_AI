@@ -99,4 +99,4 @@ def init_post_vectors(
 
 
 # 예시: post_id 100001번부터 25개만 처리
-init_post_vectors(conn, limit=25, commit_every=5, only_missing=True, start_post_id=100001)
+init_post_vectors(conn, limit=25, commit_every=5, only_missing=True, start_post_id=100051)

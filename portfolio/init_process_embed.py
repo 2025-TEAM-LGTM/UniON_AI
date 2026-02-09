@@ -102,4 +102,4 @@ def init_portfolio_vectors(
 
 
 # 예시: 특정 portfolio_id 이상에서부터 N개만 처리
-init_portfolio_vectors(conn, limit=10, commit_every=10, only_missing=True, start_portfolio_id=100001)
+init_portfolio_vectors(conn, limit=100, commit_every=10, only_missing=True, start_portfolio_id=100201)

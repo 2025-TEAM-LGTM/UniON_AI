@@ -105,10 +105,10 @@ def vec_scores(vector_col: str, query_vec, base: int, candidates: list[int]) -> 
             pid = int(r["portfolio_id"])
             score = base + soft_bonus(sim)
             # 디버깅용: 포트폴리오별 유사도/점수 출력
-            print(
-                f"[vec_scores DEBUG] col={vector_col} portfolio_id={pid} "
-                f"sim={sim:.4f} base={base} score={score}"
-            )
+            # print(
+            #     f"[vec_scores DEBUG] col={vector_col} portfolio_id={pid} "
+            #     f"sim={sim:.4f} base={base} score={score}"
+            # )
             sims[pid] = score
         return sims
 
