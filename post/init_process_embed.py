@@ -98,5 +98,5 @@ def init_post_vectors(
     print(f"done {done}")
 
 
-# 예시: post_id 100001번부터 10개만 처리
-init_post_vectors(conn, limit=10, commit_every=5, only_missing=True, start_post_id=100021)
+# 예시: post_id 100001번부터 25개만 처리
+init_post_vectors(conn, limit=25, commit_every=5, only_missing=True, start_post_id=100001)

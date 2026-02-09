@@ -11,9 +11,9 @@ sys.path.append(str(BASE_DIR))
 
 from db import conn
 def soft_bonus(sim: float) -> int:
-    if sim >= 0.80: return 3
-    if sim >= 0.75: return 2
-    if sim >= 0.70: return 1
+    if sim >= 0.50: return 3
+    if sim >= 0.45: return 2
+    if sim >= 0.40: return 1
     return 0
 
 # 1) post_id에 대응하는 post domain + vectors 가져오기
@@ -102,7 +102,14 @@ def vec_scores(vector_col: str, query_vec, base: int, candidates: list[int]) -> 
         sims: dict[int, int] = {pid: 0 for pid in candidates}
         for r in cur.fetchall():
             sim = float(r["sim"])
-            sims[int(r["portfolio_id"])] = base + soft_bonus(sim)
+            pid = int(r["portfolio_id"])
+            score = base + soft_bonus(sim)
+            # 디버깅용: 포트폴리오별 유사도/점수 출력
+            print(
+                f"[vec_scores DEBUG] col={vector_col} portfolio_id={pid} "
+                f"sim={sim:.4f} base={base} score={score}"
+            )
+            sims[pid] = score
         return sims
 
 # 5) personality 유사도 점수
