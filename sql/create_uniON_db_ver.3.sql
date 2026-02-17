@@ -206,6 +206,7 @@ CREATE TABLE "portfolio_vector" (
   "ptf_trouble_vector" vector(3072),
   "updated_at" TIMESTAMPTZ
 );
+alter table role column field_id type integer
 
 -- ==========================================
 -- 1. Dimension Tables (기준 정보)

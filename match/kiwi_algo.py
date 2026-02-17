@@ -1,8 +1,6 @@
-from typing import Any
-
+from typing import List, Dict, Any
 from psycopg.rows import dict_row
-from psn_match import psn_score_one
-
+from .sub_func import psn_score_one, soft_bonus, decay_threshold, print_match_debug, highest_percent, only_top_users
 from pathlib import Path
 import sys
 
@@ -10,11 +8,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]  # 프로젝트 루트
 sys.path.append(str(BASE_DIR))
 
 from db import conn
-def soft_bonus(sim: float) -> int:
-    if sim >= 0.50: return 3
-    if sim >= 0.45: return 2
-    if sim >= 0.40: return 1
-    return 0
+
 
 # 1) post_id에 대응하는 post domain + vectors 가져오기
 def fetch_post(conn, post_id: int) -> dict[str, Any] | None:
@@ -58,6 +52,8 @@ def fetch_ptf(conn, post_id: int) -> list[int]:
         print("해당 포스트에서 role이 일치하는 포트폴리오가 없습니다! ")
         return []
     return candidates
+
+
 
 
 # 3) domain 점수
@@ -129,7 +125,7 @@ def sum_score(
     psn_scores: dict[int, int],
     top_k: int,
 ) -> list[dict[str, Any]]:
-    """점수 합산 후 total 기준 내림차순 정렬된 전체 후보 리스트 반환 (각 항목: portfolio_id, domain, task, trouble, personality, total)."""
+    """점수 합산 후 total 기준 내림차순 정렬되어 반환 (각 항목: portfolio_id, domain, task, trouble, personality, total)."""
     ranked = []
     for pid in candidates:
         domain_score = domain_scores.get(pid, 0)
@@ -138,6 +134,7 @@ def sum_score(
         psn_score = psn_scores.get(pid, 0)
 
         total = domain_score + task_score + trouble_score + psn_score
+        highest_score = highest_percent(task_score, trouble_score, psn_score)
         ranked.append({
             "portfolio_id": pid,
             "domain": domain_score,
@@ -145,46 +142,82 @@ def sum_score(
             "trouble": trouble_score,
             "personality": psn_score,
             "total": total,
+            "highest_score" : highest_score
         })
     ranked.sort(key=lambda x: x["total"], reverse=True)
     return ranked
 
+# 7) ptf -> user 별로 묶어서, 같은 user의 포트폴리오 total 합산
 
-def print_match_debug(ranked: list[dict[str, Any]], post_id: int, top_k: int) -> None:
-    """매칭 결과 디버깅: 각 후보의 domain/task/trouble/personality/total 점수 출력."""
+def ptf_to_user(ranked: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    ranked: [{"portfolio_id": 1, "total": 10, "highest_score": "TASK"}, ...] 
+    (이미 점수 내림차순 정렬되어 있다고 가정)
+    """
     if not ranked:
-        print("[DEBUG] 후보가 없습니다.")
-        return
-    n = len(ranked)
-    print("\n" + "=" * 70)
-    print(f"[매칭 디버그] post_id={post_id} | 후보 수={n} | 상위 {min(top_k, n)}개 추천")
-    print("=" * 70)
-    header = f"{'portfolio_id':>12} | {'domain':>6} | {'task':>6} | {'trouble':>7} | {'personality':>11} | {'total':>5}"
-    print(header)
-    print("-" * 70)
-    for r in ranked:
-        mark = "  <-- 추천" if ranked.index(r) < top_k else ""
-        print(
-            f"{r['portfolio_id']:>12} | {r['domain']:>6} | {r['task']:>6} | {r['trouble']:>7} | {r['personality']:>11} | {r['total']:>5}{mark}"
+        return []
+
+    # 1. DB 조회 (동일)
+    portfolio_ids = [r["portfolio_id"] for r in ranked]
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT portfolio_id, user_id
+            FROM portfolio
+            WHERE portfolio_id = ANY(%s)
+            """,
+            (portfolio_ids,),
         )
-    print("=" * 70)
-    top_ids = [r["portfolio_id"] for r in ranked[:top_k]]
-    print(f"추천 포트폴리오 ID (top_{top_k}): {top_ids}\n")
+        rows = cur.fetchall()
+    
+    pid_to_uid = {int(r["portfolio_id"]): int(r["user_id"]) for r in rows}
 
-if __name__ == "__main__":
-    raw_post_id = input("post id를 입력하세요 : ").strip()
-    try:
-        c_post_id = int(raw_post_id)
-    except ValueError:
-        print("post id는 정수여야 합니다.")
-        sys.exit(1)
+    # 2. 유저별 그룹핑 & 감가상각 적용
+    by_user: Dict[int, Dict[str, Any]] = {}
 
-    c_post = fetch_post(conn, c_post_id)
+    for r in ranked:
+        pid = r["portfolio_id"]
+        uid = pid_to_uid.get(pid)
+        
+        if uid is None:
+            continue
+
+        # [User 처음 발견 시 초기화]
+        if uid not in by_user:
+            by_user[uid] = {
+                "user_id": uid, 
+                "portfolio_ids": [], 
+                "total": 0,
+                # 가장 점수 높은(첫 번째) 포트폴리오의 highest_score 항목 저장
+                "main_strength": r.get("highest_score", "UNKNOWN") 
+            }
+
+        # 유저별 감가상각 (현재 담긴 개수가 곧 나의 랭킹)
+        current_rank = len(by_user[uid]["portfolio_ids"]) # 0, 1, 2...
+        
+        # 감가상각 함수 호출 (rank 0이면 100%, 1이면 80%...)
+        score = decay_threshold(r["total"], current_rank)
+        
+        by_user[uid]["total"] += score
+        by_user[uid]["portfolio_ids"].append(pid)
+    
+    # 3. 결과 리스트 변환 및 정렬
+    result = list(by_user.values())
+    
+    # 최종적으로 유저 총점 순으로 다시 정렬 (User A vs User B)
+    result.sort(key=lambda x: x["total"], reverse=True)
+    return result
+
+
+
+# 8) main process 함수
+def main_process(post_id : int) -> list[dict[str,Any]]:
+    c_post = fetch_post(conn, post_id)
     if c_post is None:
         # 이미 fetch_post에서 메시지 출력
         sys.exit(0)
 
-    c_ptf = fetch_ptf(conn, c_post_id)
+    c_ptf = fetch_ptf(conn, post_id)
     if not c_ptf:
         # 이미 fetch_ptf에서 메시지 출력
         sys.exit(0)
@@ -194,16 +227,16 @@ if __name__ == "__main__":
     c_task_scores = vec_scores(
         "ptf_task_vector",
         c_post["pst_task_vector"],
-        base=3,
+        base=0,
         candidates=c_ptf,
     )
     c_trouble_scores = vec_scores(
         "ptf_trouble_vector",
         c_post["pst_trouble_vector"],
-        base=3,
+        base=0,
         candidates=c_ptf,
     )
-    c_psn_scores = psn_scores(c_post_id, c_ptf)
+    c_psn_scores = psn_scores(post_id, c_ptf)
 
     top_k = 5
     ranked = sum_score(
@@ -214,4 +247,21 @@ if __name__ == "__main__":
         c_psn_scores,
         top_k,
     )
-    print_match_debug(ranked, c_post_id, top_k)
+
+    user_ranked = ptf_to_user(ranked)
+    top_users = only_top_users(user_ranked, 0.3, 10)
+    print(len(top_users))
+    return top_users
+
+
+
+# if __name__ == "__main__":
+#     raw_post_id = input("post id를 입력하세요 : ").strip()
+#     try:
+#         c_post_id = int(raw_post_id)
+#     except ValueError:
+#         print("post id는 정수여야 합니다.")
+#         sys.exit(1)
+
+#     top_users = main_process(c_post_id)
+#     print_match_debug(top_users, c_post_id)
