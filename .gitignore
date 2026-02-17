@@ -10,6 +10,9 @@ venv/
 ENV/
 env/
 
+!.env.example
+
+
 # ---- OS ----
 .DS_Store
 
