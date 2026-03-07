@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 conn = psycopg.connect(
     dbname=os.getenv("POSTGRES_DB"),
+    password=os.getenv("POSTGRES_PASSWORD"),
     user=os.getenv("POSTGRES_USER"),
     host=os.getenv("POSTGRES_HOST"),
     port=os.getenv("POSTGRES_PORT"),
