@@ -45,7 +45,7 @@ jobs:
           labels: |
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-      
+
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
