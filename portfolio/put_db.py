@@ -1,5 +1,3 @@
-import psycopg
-
 from typing import Sequence
 
 

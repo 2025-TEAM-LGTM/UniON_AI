@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from match.kiwi_algo import main_process
+from post.process_embed import put_post_vector
+from portfolio.process_embed import put_portfolio_vector
 
 app = FastAPI()
 
@@ -15,6 +17,13 @@ class MatchResult(BaseModel):
 
 class MatchResponse(BaseModel):
     results: List[MatchResult]
+
+class PostReq(BaseModel):
+    post_id: int
+
+class PortfolioReq(BaseModel):
+    portfolio_id: int
+
 
 @app.post("/ping")
 def ping(req: MatchReq):
@@ -36,5 +45,12 @@ def match_result(req : MatchReq):
     ]
     return MatchResponse(results = results)
 
+@app.post("/vectorize/post")
+def vectorize_post(req: PostReq):
+    put_post_vector(req.post_id)
+    return {"ok": True}
 
-
+@app.post("/vectorize/portfolio")
+def vectorize_portfolio(req: PortfolioReq):
+    put_portfolio_vector(req.portfolio_id)
+    return {"ok": True}

@@ -1,6 +1,6 @@
-from extract_feature import openai_extract_task, openai_extract_task_and_trouble
+from .extract_feature import openai_extract_task, openai_extract_task_and_trouble
 from typing import List, Dict, Any
-import json
+
 def get_t_text(portfolio: dict) -> str:
     return (portfolio.get("t_text") or "").strip()
 

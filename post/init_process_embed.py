@@ -5,9 +5,9 @@ BASE_DIR = Path(__file__).resolve().parents[1]  # 프로젝트 루트
 sys.path.append(str(BASE_DIR))                 # db import용
 
 from db import conn
-from process_embed import process_post
-from embed import embed
-from put_db import upsert_post_vector
+from .process_embed import process_post
+from .embed import embed
+from .put_db import upsert_post_vector
 
 
 def fetch_posts(

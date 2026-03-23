@@ -1,15 +1,16 @@
 from psycopg.rows import dict_row
 from pathlib import Path
 import sys
-from get_extract import get_t_text, get_a_text, extract_task_from_t_text, extract_task_from_a_text, extract_trouble_from_a_text, merge_tasks
-from embed import embed
-from put_db import upsert_task_vector, upsert_trouble_vector
+
+from .get_extract import get_t_text, get_a_text, extract_task_from_t_text, extract_task_from_a_text, extract_trouble_from_a_text, merge_tasks
+from .embed import embed
+from .put_db import upsert_task_vector, upsert_trouble_vector
 
 BASE_DIR = Path(__file__).resolve().parents[1]  # 프로젝트 루트
-sys.path.append(str(BASE_DIR))                 # db import용
+sys.path.append(str(BASE_DIR))  
+               # db import용
 from db import conn
 
-portfolio_id= 265
 
 def process_portfolio(portfolio: dict) -> tuple[list, list]:
 
@@ -42,21 +43,23 @@ def fetch_one_portfolio(conn, portfolio_id: int) -> dict:
         return cur.fetchone()
 
 
-# portfolio = fetch_one_portfolio(conn, portfolio_id)
-# task_text, trouble_text = process_portfolio(portfolio)
+def put_portfolio_vector(portfolio_id: int):
+    print("vectorize 시작!")
+    portfolio = fetch_one_portfolio(conn, portfolio_id)
 
+    if portfolio is None:
+        raise ValueError(f"portfolio not found. portfolio_id={portfolio_id}")
+    else:
+        print("fetched portfolio:", portfolio)
 
-# # task와 trouble 임베딩
+    task_list, trouble_list = process_portfolio(portfolio)
 
-# task_emb = embed(task_text) if task_text.strip() else None
-# trouble_emb = embed(trouble_text) if trouble_text.strip() else None
+    task_text = "\n".join(task_list) if task_list else ""
+    trouble_text = "\n".join(trouble_list) if trouble_list else ""
 
-# print("task_emb type/len:", type(task_emb), None if task_emb is None else len(task_emb))
-# print("trouble_emb type/len:", type(trouble_emb), None if trouble_emb is None else len(trouble_emb))
+    task_emb = embed(task_text) if task_text.strip() else None
+    trouble_emb = embed(trouble_text) if trouble_text.strip() else None
 
-
-# upsert_task_vector(conn, portfolio_id,task_emb)
-# upsert_trouble_vector(conn, portfolio_id,trouble_emb)
-# conn.commit()
-
-# conn.close()
+    upsert_task_vector(conn, portfolio_id, task_emb)
+    upsert_trouble_vector(conn, portfolio_id, trouble_emb)
+    conn.commit()
