@@ -5,9 +5,9 @@ BASE_DIR = Path(__file__).resolve().parents[1]  # 프로젝트 루트
 sys.path.append(str(BASE_DIR))  
                
 from db import conn
-from process_embed import process_portfolio
-from embed import embed
-from put_db import upsert_task_vector, upsert_trouble_vector
+from .process_embed import process_portfolio
+from .embed import embed
+from .put_db import upsert_task_vector, upsert_trouble_vector
 
 
 def fetch_portfolios(

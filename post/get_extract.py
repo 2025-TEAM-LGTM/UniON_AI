@@ -1,4 +1,4 @@
-from extract_feature import openai_extract_seeking_all
+from .extract_feature import openai_extract_seeking_all
 from typing import Dict, Any
 
 def get_seeking(post : dict ) -> str:
