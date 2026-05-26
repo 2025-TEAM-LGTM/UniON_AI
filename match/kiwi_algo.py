@@ -209,32 +209,34 @@ def ptf_to_user(ranked: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 
-# 8) main process 함수
-def main_process(post_id : int) -> list[dict[str,Any]]:
+
+def main_process(post_id: int) -> list[dict[str, Any]]:
     c_post = fetch_post(conn, post_id)
     if c_post is None:
-        # 이미 fetch_post에서 메시지 출력
-        sys.exit(0)
+        print(f"[MATCH] post_id={post_id} 없음")
+        return []
 
     c_ptf = fetch_ptf(conn, post_id)
     if not c_ptf:
-        # 이미 fetch_ptf에서 메시지 출력
-        sys.exit(0)
+        print(f"[MATCH] post_id={post_id} 후보 포트폴리오 없음")
+        return []
 
     c_domain_scores = score_domain(conn, c_post, c_ptf)
 
     c_task_scores = vec_scores(
         "ptf_task_vector",
-        c_post["pst_task_vector"],
+        c_post.get("pst_task_vector"),
         base=0,
         candidates=c_ptf,
     )
+
     c_trouble_scores = vec_scores(
         "ptf_trouble_vector",
-        c_post["pst_trouble_vector"],
+        c_post.get("pst_trouble_vector"),
         base=2,
         candidates=c_ptf,
     )
+
     c_psn_scores = psn_scores(post_id, c_ptf)
 
     ranked = sum_score(
@@ -242,13 +244,27 @@ def main_process(post_id : int) -> list[dict[str,Any]]:
         c_domain_scores,
         c_task_scores,
         c_trouble_scores,
-        c_psn_scores
+        c_psn_scores,
     )
 
+    if not ranked:
+        print(f"[MATCH] post_id={post_id} 점수 결과 없음")
+        return []
+
     user_ranked = ptf_to_user(ranked)
+
+    if not user_ranked:
+        print(f"[MATCH] post_id={post_id} 유저 변환 결과 없음")
+        return []
+
     print_match_debug(user_ranked, post_id)
+
     top_users = only_top_users(user_ranked, 0.9, 10)
-    print(len(top_users))
+
+    if not top_users:
+        print(f"[MATCH] post_id={post_id} 추천 유저 없음")
+        return []
+
     return top_users
 
 
