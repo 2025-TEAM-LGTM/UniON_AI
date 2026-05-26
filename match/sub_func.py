@@ -66,10 +66,10 @@ def psn_score_one(post_id : int, portfolio_id : int) -> float:
 
 
 def soft_bonus(sim: float) -> int:
-    if sim >= 0.55: return 6
-    if sim >= 0.50: return 5
-    if sim >= 0.45: return 4
-    if sim >= 0.40: return 3
+    if sim >= 0.55: return 5
+    if sim >= 0.50: return 4
+    if sim >= 0.45: return 3
+    if sim >= 0.40: return 2
     return 0
 
 def decay_threshold(total : int, count : int) -> int:

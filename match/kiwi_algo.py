@@ -74,8 +74,8 @@ def score_domain(conn, post: dict[str, Any], candidates: list[int]) -> dict[int,
         )
         for r in cur.fetchall():
             s = 0
-            if r["domain_id"] == prime: s += 5
-            if r["domain_id"] == second: s += 5
+            if r["domain_id"] == prime: s += 3
+            if r["domain_id"] == second: s += 3
             if prefer: s += 1
             domain_scores[int(r["portfolio_id"])] = s
 
@@ -122,8 +122,7 @@ def sum_score(
     domain_scores: dict[int, int],
     task_scores: dict[int, int],
     trouble_scores: dict[int, int],
-    psn_scores: dict[int, int],
-    top_k: int,
+    psn_scores: dict[int, int]
 ) -> list[dict[str, Any]]:
     """점수 합산 후 total 기준 내림차순 정렬되어 반환 (각 항목: portfolio_id, domain, task, trouble, personality, total)."""
     ranked = []
@@ -233,23 +232,22 @@ def main_process(post_id : int) -> list[dict[str,Any]]:
     c_trouble_scores = vec_scores(
         "ptf_trouble_vector",
         c_post["pst_trouble_vector"],
-        base=0,
+        base=2,
         candidates=c_ptf,
     )
     c_psn_scores = psn_scores(post_id, c_ptf)
 
-    top_k = 5
     ranked = sum_score(
         c_ptf,
         c_domain_scores,
         c_task_scores,
         c_trouble_scores,
-        c_psn_scores,
-        top_k,
+        c_psn_scores
     )
 
     user_ranked = ptf_to_user(ranked)
-    top_users = only_top_users(user_ranked, 0.3, 10)
+    print_match_debug(user_ranked, post_id)
+    top_users = only_top_users(user_ranked, 0.9, 10)
     print(len(top_users))
     return top_users
 
