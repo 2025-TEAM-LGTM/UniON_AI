@@ -35,33 +35,81 @@ def openai_extract_task(t_text: str, model: str = "gpt-4o") -> str:
         return ""
 
     resp = client.responses.create(
-        model=model,
-        input=[
-            {
-                "role": "system",
-                "content": (
-                    "너는 포트폴리오에서 경험을 추출하는 정보추출기다."
-                    "반드시 문자열의 List로만 출력한다. 설명/해설/서론/마크다운/코드블록 금지."
-                    "아래 스키마를 정확히 따른다.\n\n"
-                    f"OUTPUT SCHEMA \n {SeekingExtract_t}"
-                )
-            },
-            {
-                "role": "user",
-                "content": (
-                    "아래 [본문]에서 '본인이 맡은 상세한 업무/기여'에 해당하는 내용만 뽑아라."
-                    "단순 역할/직무명(예: 백엔드 개발자, 디자이너, PM)은 절대 넣지 마."
-                    "해당 역할 또는 직무에서 경험해본 업무를 적는다."
-                    "각 배열 요소는 3~20단어 정도의 짧은 구문으로 쓰고, 중복은 제거해.\n"
-                    "아래 출력 예시는 오직 형식만 참고하고, 내용은 완전히 input만을 따를 것"
-                    "출력 규칙:\n"
-                    "{\"task\":[\"이용자 리뷰와 통계 자료 조사\",\"영상과 카드뉴스 제작\"]}"
-                    f"[본문]\n{t_text}"
+    model=model,
+    input=[
+        {
+            "role": "system",
+            "content": (
+                "You are a structured information extractor for Korean portfolio documents.\n"
+                "Your sole job is to extract one category from the given portfolio text:\n"
+                "- task: Specific actions, work, and contributions the AUTHOR personally performed.\n\n"
+
+                "OUTPUT RULES:\n"
+                "- Return a single JSON object only. No explanation, no markdown, no code block, no extra text.\n"
+                "- Each value must be a List of strings.\n"
+                "- Output language must be Korean.\n\n"
+
+                "Follow the schema below exactly.\n"
+                f"OUTPUT SCHEMA:\n{SeekingExtract_t}\n\n"
+
+                "EXTRACTION RULES:\n"
+                "- task: Include only specific actions, work, and contributions directly performed by the author.\n"
+                "- Do NOT include job titles, role names, or tech stack listings.\n"
+                "- Use only content explicitly stated in the text. Do not infer or embellish.\n"
+                "- Include only what the AUTHOR did, not what the team or company did.\n\n"
+
+                "INTERNAL VERIFICATION (do NOT output this process):\n"
+                "Before finalizing each extracted item, silently verify:\n"
+                "1. Is the subject of this action clearly the AUTHOR (not the team or company)?\n"
+                "   - Signals of author action: '제가', '저는', '직접', '담당했습니다', '구현했습니다'\n"
+                "   - Signals of team action: '팀에서', '팀이', '함께', '우리가' → EXCLUDE unless author's personal role is specified\n"
+                "2. Is the item 3–20 words and free of role names or stack listings?\n"
+                "If any check fails, discard the item."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                "Extract task from the [TEXT] below.\n\n"
+
+                "WRITING RULES:\n"
+                "- Each item should be a short phrase of approximately 3–20 words.\n"
+                "- If multiple items exist, add them as separate entries in the List.\n"
+                "- Remove duplicate or overlapping items, keeping only one.\n"
+                "- If no relevant content exists, return an empty array [].\n\n"
+
+                "FEW-SHOT EXAMPLES:\n\n"
+
+                "# Example 1 — task present (개발)\n"
+                "[TEXT]: '데이터 전처리 파이프라인을 설계하고 REST API를 개발했습니다. "
+                "또한 CI/CD 파이프라인을 직접 구축했습니다.'\n"
+                "{\"task\": [\"데이터 전처리 파이프라인 설계\", \"REST API 개발\", \"CI/CD 파이프라인 직접 구축\"]}\n\n"
+
+                "# Example 2 — team action vs author action (개발)\n"
+                "[TEXT]: '팀에서 마이크로서비스 아키텍처를 도입했고, 저는 서비스 간 통신 모듈을 직접 구현했습니다.'\n"
+                "{\"task\": [\"서비스 간 통신 모듈 직접 구현\"]}\n\n"
+
+                "# Example 3 — task present (마케팅)\n"
+                "[TEXT]: '신규 앱 출시를 위해 제가 직접 SNS 광고 캠페인을 기획하고 집행했습니다. "
+                "또한 월간 성과 리포트를 작성해 팀에 공유했습니다.'\n"
+                "{\"task\": [\"SNS 광고 캠페인 기획 및 집행\", \"월간 성과 리포트 작성 및 공유\"]}\n\n"
+
+                "# Example 4 — task present (영상)\n"
+                "[TEXT]: '30초 브랜드 광고의 편집을 제가 단독으로 맡았습니다. "
+                "인터뷰 장면의 자막 작업과 사운드 믹싱을 담당했습니다.'\n"
+                "{\"task\": [\"30초 브랜드 광고 단독 편집\", \"인터뷰 장면 자막 작업\", \"사운드 믹싱 담당\"]}\n\n"
+
+                "# Example 5 — task present (디자인)\n"
+                "[TEXT]: '앱 리디자인 프로젝트에서 제가 IA 설계와 와이어프레임 제작을 맡았습니다. "
+                "사용자 테스트 시나리오도 직접 작성했습니다.'\n"
+                "{\"task\": [\"IA 설계 및 와이어프레임 제작\", \"사용자 테스트 시나리오 직접 작성\"]}\n\n"
+
+                "[TEXT]\n"
+                f"{t_text}"
                 )
             }
         ],
-    )
-
+        )
     out = (resp.output_text or "").strip()
 
         # JSON만 뽑아서 파싱 (혹시 앞뒤 군더더기 있으면 대비)
@@ -99,40 +147,92 @@ def openai_extract_task_and_trouble(a_text: str, model: str = "gpt-4o") -> dict:
             {
                 "role": "system",
                 "content": (
-                    "너는 포트폴리오 본문에서 "
-                    "본인이 실제로 수행한 업무(task)와 "
-                    "② 그 과정에서 발생한 문제 및 해결 경험(trouble)을 추출하는 정보추출기다.\n\n"
-                    "출력은 반드시 JSON 하나만 반환한다.\n"
-                    "설명, 해설, 서론, 마크다운, 코드블록, 추가 텍스트는 절대 출력하지 않는다.\n"
-                    "각 값은 문자열의 List 형태여야 한다.\n\n"
-                    "아래 스키마를 정확히 따른다.\n"
-                    f"OUTPUT SCHEMA \n {SeekingExtract_a}"
+                    "You are a structured information extractor for Korean portfolio documents.\n"
+                    "Your sole job is to extract two categories from the given portfolio text:\n"
+                    "- task: Specific actions, work, and contributions the AUTHOR personally performed.\n"
+                    "- trouble: Problems, constraints, errors, conflicts, or performance issues encountered, "
+                    "including resolution attempts and outcomes.\n\n"
 
-                    "추출 기준:\n"
-                    "- task: 직접 수행한 구체적인 행동, 작업, 기여 내용만 포함한다.\n"
-                    "- trouble: 문제 상황, 제약, 오류, 갈등, 성능 이슈와 그 해결 시도/결과만 포함한다.\n"
-                    "- 단순 직무명, 역할명, 기술 스택 나열은 포함하지 않는다.\n"
-                    "- 추론이나 각색 없이, 본문에 명시된 내용만 사용한다."                    
+                    "OUTPUT RULES:\n"
+                    "- Return a single JSON object only. No explanation, no markdown, no code block, no extra text.\n"
+                    "- Each value must be a List of strings.\n"
+                    "- Output language must be Korean.\n\n"
+
+                    "Follow the schema below exactly.\n"
+                    f"OUTPUT SCHEMA:\n{SeekingExtract_a}\n\n"
+
+                    "EXTRACTION RULES:\n"
+                    "- task: Include only specific actions, work, and contributions directly performed by the author.\n"
+                    "- trouble: Include only problem situations, constraints, errors, conflicts, performance issues "
+                    "and their resolution attempts or outcomes.\n"
+                    "- Do NOT include job titles, role names, or tech stack listings.\n"
+                    "- Use only content explicitly stated in the text. Do not infer or embellish.\n"
+                    "- Include only what the AUTHOR did, not what the team or company did.\n\n"
+
+                    "INTERNAL VERIFICATION (do NOT output this process):\n"
+                    "Before finalizing each extracted item, silently verify:\n"
+                    "1. Is the subject of this action clearly the AUTHOR (not the team or company)?\n"
+                    "   - Signals of author action: '제가', '저는', '직접', '담당했습니다', '구현했습니다'\n"
+                    "   - Signals of team action: '팀에서', '팀이', '함께', '우리가' → EXCLUDE unless author's personal role is specified\n"
+                    "2. Is the item 3–20 words and free of role names or stack listings?\n"
+                    "If any check fails, discard the item."
                 )
             },
             {
                 "role": "user",
                 "content": (
-                    "아래 [본문]기반으로 task와 trouble을 추출하라..\n"
-                    "작성 규칙:\n"
-                    "- task와 trouble은 명확히 구분한다.\n"
-                    "- 각 항목은 3~20단어 내외의 짧은 구문으로 작성한다.\n"
-                    "- 여러 항목의 경우, List에 쉼표로 구분하여 추가한다. "
-                    "- 의미가 겹치는 항목은 하나만 남기고 제거한다.\n"
-                    "- 해당되는 내용이 없으면 빈 배열([])로 반환한다.\n\n"
-                    "출력 형식 예시 (형식만 참고):\n"
-                    "{\"task\": [\"데이터 전처리 파이프라인 설계\"], "
-                    "\"trouble\": [\"대용량 데이터 처리 중 메모리 초과 문제 해결\", "
-                    "\"API 응답 지연 현상 원인 분석 및 개선\", "
-                    "\"모델 예측 결과 편향 문제 조정\"]}"
+                    "Extract task and trouble from the [TEXT] below.\n\n"
 
+                    "WRITING RULES:\n"
+                    "- Clearly distinguish between task and trouble.\n"
+                    "- If multiple items exist, add them as separate entries in the List.\n"
+                    "- Remove duplicate or overlapping items, keeping only one.\n"
+                    "- If no relevant content exists, return an empty array [].\n\n"
 
-                    "[본문]\n"
+                    "FEW-SHOT EXAMPLES:\n\n"
+
+                    "FEW-SHOT EXAMPLES:\n\n"
+
+                    "# Example 1 — task and trouble both present (개발)\n"
+                    "[TEXT]: '사용자 급증으로 API 응답이 5초 이상 지연되어, 제가 직접 쿼리 최적화와 "
+                    "Redis 캐싱을 도입해 1초 이내로 개선했습니다. 또한 CI/CD 파이프라인을 직접 구축했습니다.'\n"
+                    "{\"task\": [\"CI/CD 파이프라인 직접 구축\"], "
+                    "\"trouble\": [\"API 응답 5초 이상 지연 문제를 Redis 캐싱 도입으로 1초 이내 개선\"]}\n\n"
+
+                    "# Example 2 — task only, no trouble (개발)\n"
+                    "[TEXT]: '데이터 전처리 파이프라인을 설계하고 REST API를 개발했습니다.'\n"
+                    "{\"task\": [\"데이터 전처리 파이프라인 설계\", \"REST API 개발\"], \"trouble\": []}\n\n"
+
+                    "# Example 3 — team action vs author action (개발)\n"
+                    "[TEXT]: '팀에서 마이크로서비스 아키텍처를 도입했고, 저는 서비스 간 통신 모듈을 직접 구현했습니다.'\n"
+                    "{\"task\": [\"서비스 간 통신 모듈 직접 구현\"], \"trouble\": []}\n\n"
+
+                    "# Example 4 — task and trouble both present (마케팅)\n"
+                    "[TEXT]: '신규 앱 출시를 위해 제가 직접 SNS 광고 캠페인을 기획하고 집행했습니다. "
+                    "초기 CTR이 0.8%로 목표치를 밑돌아, A/B 테스트를 통해 카피와 소재를 교체한 결과 CTR 2.1%로 개선했습니다.'\n"
+                    "{\"task\": [\"SNS 광고 캠페인 기획 및 집행\"], "
+                    "\"trouble\": [\"CTR 0.8% 미달 문제를 A/B 테스트 기반 소재 교체로 2.1%까지 개선\"]}\n\n"
+
+                    "# Example 5 — task and trouble both present (영상)\n"
+                    "[TEXT]: '30초 브랜드 광고의 편집을 제가 단독으로 맡았습니다. "
+                    "촬영본 색감이 레퍼런스와 달라 색 보정 작업을 직접 수행해 톤을 통일했고, "
+                    "최종본 납품 기한을 맞췄습니다.'\n"
+                    "{\"task\": [\"30초 브랜드 광고 단독 편집\", \"색 보정 작업 직접 수행\"], "
+                    "\"trouble\": [\"촬영본 색감 불일치 문제를 직접 색 보정으로 톤 통일\"]}\n\n"
+
+                    "# Example 6 — team action vs author action (영상)\n"
+                    "[TEXT]: '팀이 함께 다큐멘터리를 제작했으며, 저는 인터뷰 장면의 자막 작업과 "
+                    "사운드 믹싱을 담당했습니다.'\n"
+                    "{\"task\": [\"인터뷰 장면 자막 작업\", \"사운드 믹싱 담당\"], \"trouble\": []}\n\n"
+
+                    "# Example 7 — task and trouble both present (디자인)\n"
+                    "[TEXT]: '앱 리디자인 프로젝트에서 제가 IA 설계와 와이어프레임 제작을 맡았습니다. "
+                    "사용자 테스트 결과 네비게이션 혼란 문제가 발견되어, 메뉴 구조를 재설계해 "
+                    "태스크 완료율을 68%에서 89%로 향상시켰습니다.'\n"
+                    "{\"task\": [\"IA 설계 및 와이어프레임 제작\"], "
+                    "\"trouble\": [\"네비게이션 혼란 문제를 메뉴 구조 재설계로 태스크 완료율 89%로 향상\"]}\n\n"
+
+                    "[TEXT]\n"
                     f"{a_text}"
                 )
             }

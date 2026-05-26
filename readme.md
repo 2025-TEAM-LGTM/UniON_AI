@@ -105,10 +105,10 @@ cp .env.example .env
 
 ```bash
 # 포트폴리오: t_text, a_text → task/trouble 추출 → 임베딩 → portfolio_vector
-python portfolio/init_process_embed.py
+python -m portfolio.init_process_embed.py
 
 # 게시글: seeking → task/trouble/prefer 추출 → 임베딩 → post_vector
-python post/init_process_embed.py
+python -m post.init_process_embed
 ```
 
 각 스크립트 **맨 아래**에서 다음을 조절할 수 있습니다.
@@ -122,8 +122,8 @@ python post/init_process_embed.py
 ### 2. 매칭 API 서버 실행
 
 ```bash
-# 프로젝트 루트에서
-uvicorn server:app --reload
+# 프로젝트 루트에서s
+uvicorn match_server:app --reload
 ```
 
 - **통신 확인**: `POST /ping` body `{ "post_id": 123 }`  
